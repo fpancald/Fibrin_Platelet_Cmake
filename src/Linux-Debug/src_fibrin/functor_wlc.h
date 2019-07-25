@@ -71,8 +71,10 @@ struct functor_wlc {
 	void operator()(const Tub& u1b1) {
 		//idA represents row.
 		unsigned idA = thrust::get<0>(u1b1);
-		//unsigned numOriginalNeighbors = numOriginalNeighborsVec[idA];
 
+		unsigned numOriginalNeighbors = numOriginalNeighborsVec[idA];
+		//n1: neighbors of n1
+		//n2: neighbors of n2
 		bool isFixed = thrust::get<1>(u1b1);
 		double sumForceX = 0;
 		double sumForceY = 0;
@@ -84,38 +86,49 @@ struct functor_wlc {
 			unsigned beginIndex = idA * maxNeighborCount;
 			unsigned endIndex = beginIndex + maxNeighborCount;
 			
-
+			unsigned connection_counter = 0
+			bool is_idB_new_connection = false;
 			for (unsigned i = beginIndex; i < endIndex; i++) {//currentSpringCount is the length of index and value vectors
+				if (connection_counter >= numOriginalNeighbors){
+					is_idB_new_connection = true;
+				}
+
 				unsigned idB = globalNeighbors[i];//look through possible neighbors. May contain ULONG_MAX
 				if (idB < maxNodeCount){
 				
 					double lengthZero = lenZero[i];
 					if (lengthZero > 0) {
 						
-						double posXA_XB = locXAddr[idB] - locXAddr[idA];
-						double posYA_YB = locYAddr[idB] - locYAddr[idA];
-						double posZA_ZB = locZAddr[idB] - locZAddr[idA];
-		
-						double currentLength = sqrt(
-							(posXA_XB) * (posXA_XB)+
-							(posYA_YB) * (posYA_YB)+
-							(posZA_ZB) * (posZA_ZB));
-	
-						double strain = ((currentLength - lengthZero) / lengthZero);
-
-						double dL_norm = strain / ( CLM);//CLM is unitless since it was already normalized. 
-						double magForce = (numMonFiberArea*(Kb*Temp) / PLengthMon) * ( 0.25 * pow(1.0 - dL_norm, -2.0) - 0.25 + dL_norm);
-				
-						double magForceX = (posXA_XB / currentLength) * magForce;
-						double magForceY = (posYA_YB / currentLength) * magForce;
-						double magForceZ = (posZA_ZB / currentLength) * magForce;
-						
-						sumForceX += magForceX;
-						sumForceY += magForceY;
-						sumForceZ += magForceZ;
+							double posXA_XB = locXAddr[idB] - locXAddr[idA];
+							double posYA_YB = locYAddr[idB] - locYAddr[idA];
+							double posZA_ZB = locZAddr[idB] - locZAddr[idA];
 			
+							double currentLength = sqrt(
+								(posXA_XB) * (posXA_XB)+
+								(posYA_YB) * (posYA_YB)+
+								(posZA_ZB) * (posZA_ZB));
+		
+							double strain = ((currentLength - lengthZero) / lengthZero);
+
+							double dL_norm = strain / ( CLM);//CLM is unitless since it was already normalized.
+						if (is_idB_new_connection == false){
+							double magForce = (numMonFiberArea*(Kb*Temp) / PLengthMon) * ( 0.25 * pow(1.0 - dL_norm, -2.0) - 0.25 + dL_norm);
+						}
+						else{
+							double magForce = 3/2*(numMonFiberArea*(Kb*Temp) / PLengthMon)*dL_norm
+						}
+							double magForceX = (posXA_XB / currentLength) * magForce;
+							double magForceY = (posYA_YB / currentLength) * magForce;
+							double magForceZ = (posZA_ZB / currentLength) * magForce;
+							
+							sumForceX += magForceX;
+							sumForceY += magForceY;
+							sumForceZ += magForceZ;
+						
+						
 					}
 				}
+				connection_counter+=1
 			}
 			
 			
