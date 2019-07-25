@@ -86,7 +86,7 @@ struct functor_wlc {
 			unsigned beginIndex = idA * maxNeighborCount;
 			unsigned endIndex = beginIndex + maxNeighborCount;
 			
-			unsigned connection_counter = 0
+			unsigned connection_counter = 0;
 			bool is_idB_new_connection = false;
 			for (unsigned i = beginIndex; i < endIndex; i++) {//currentSpringCount is the length of index and value vectors
 				if (connection_counter >= numOriginalNeighbors){
