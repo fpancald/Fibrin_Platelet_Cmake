@@ -114,18 +114,26 @@ struct functor_wlc {
 						
 						if (is_idB_new_connection == false){
 							double magForce = (numMonFiberArea*(Kb*Temp) / PLengthMon) * ( 0.25 * pow(1.0 - dL_norm, -2.0) - 0.25 + dL_norm);
+							double magForceX = (posXA_XB / currentLength) * magForce;
+							double magForceY = (posYA_YB / currentLength) * magForce;
+							double magForceZ = (posZA_ZB / currentLength) * magForce;
+							
+							sumForceX += magForceX;
+							sumForceY += magForceY;
+							sumForceZ += magForceZ;
 						}
 						else{
 							double magForce = 3 / 2 * (numMonFiberArea*(Kb*Temp) / PLengthMon)*dL_norm;
+							double magForceX = (posXA_XB / currentLength) * magForce;
+							double magForceY = (posYA_YB / currentLength) * magForce;
+							double magForceZ = (posZA_ZB / currentLength) * magForce;
+							
+							sumForceX += magForceX;
+							sumForceY += magForceY;
+							sumForceZ += magForceZ;
 						}
 						
-						double magForceX = (posXA_XB / currentLength) * magForce;
-						double magForceY = (posYA_YB / currentLength) * magForce;
-						double magForceZ = (posZA_ZB / currentLength) * magForce;
 						
-						sumForceX += magForceX;
-						sumForceY += magForceY;
-						sumForceZ += magForceZ;
 						
 						
 					}
