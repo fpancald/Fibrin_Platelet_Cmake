@@ -42,6 +42,7 @@ void advanceSystem(std::string filename, std::shared_ptr<System> system){
 			system->generalParams.currentTime = time;
 			std::cout<<"resetting time: " << time << std::endl;
 		}
+
 		unsigned node_increment = 0;
 		if (temp == "node") {
 			std::getline(ss,temp,' ');
@@ -78,13 +79,42 @@ void advanceSystem(std::string filename, std::shared_ptr<System> system){
 			system->generalParams.currentEdgeCount = edge_count;
 		}
 
+		unsigned temp_edge_counter=0;
+		if (temp == "edge_lr") {			
+			std::getline(ss,temp,' ');
+			unsigned left_edge = std::stoi(temp.c_str());
+			std::getline(ss,temp,' ');
+			unsigned right_edge = std::stoi(temp.c_str());
+
+			system->nodeInfoVecs.hostEdgeLeft[temp_edge_counter] = left_edge;
+			system->nodeInfoVecs.hostEdgeRight[temp_edge_counter] = right_edge;
+			temp_edge_counter++;
+		}
+
+		//lengths must be overwritten because added edges have lenzero
+		unsigned len_increment = 0;
+		if (temp == "length_zero") {
+			std::getline(ss,temp,' ');
+			double len_zero = std::atof(temp.c_str());
+			system->wlcInfoVecs.lengthZero[len_increment] = len_zero;
+			len_increment+=1;
+		}
+
 		unsigned gnbr_increment = 0;
 		if (temp == "global_nbr") {
 			std::getline(ss,temp,' ');
 			unsigned nbr_index = std::stoi(temp.c_str());
 			system->wlcInfoVecs.globalNeighbors[gnbr_increment] = nbr_index;
 			gnbr_increment+=1;
+
+			//check corresponding length of edge, if not filled use 0.1
+			double test_length = system->wlcInfoVecs.lengthZero[gnbr_increment];
+			if (test_length == 0.0 ){
+				system->wlcInfoVecs.lengthZero[gnbr_increment] = generalParams.fiberDiameter;
+			}
 		}
+
+
 
 		unsigned is_node_incr = 0;
 		if (temp == "is_node_in_plt") {
