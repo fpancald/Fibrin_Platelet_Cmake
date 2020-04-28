@@ -1,7 +1,7 @@
 #include "SystemStructures.h"
 #include "System.h"
-#include "Plt_Arm_Node_Force.h"
-#include "functor_plt_arm_node.h"
+#include "Plt_Arm_Node_Force_Time.h"
+#include "functor_plt_arm_node_time.h"
 #include "functor_misc.h"
 
 //tendril-like force
@@ -9,7 +9,7 @@
 //Force is applied to nodes
 //We use the tndrl for imaging.
 
-void Plt_Arm_Node_Force(
+void Plt_Arm_Node_Force_Time(
 	NodeInfoVecs& nodeInfoVecs,
 	WLCInfoVecs& wlcInfoVecs,
 	GeneralParams& generalParams,
@@ -72,11 +72,10 @@ void Plt_Arm_Node_Force(
         		 pltInfoVecs.pltForceX.begin(),
         		 pltInfoVecs.pltForceY.begin(),
         		 pltInfoVecs.pltForceZ.begin())),
-             functor_plt_arm_node(
-				generalParams.use_dynamic_plt_force,
+            functor_plt_arm_node_time(
+				generalParams.currentTime,
 				generalParams.CLM,
-				generalParams.max_dynamic_plt_force,
-				generalParams.use_nonlinear_dynamic_force,
+				generalParams.wlc_factor, //this is NKBT/P
 				generalParams.distribute_plt_force,
 
                 generalParams.plt_tndrl_intrct,

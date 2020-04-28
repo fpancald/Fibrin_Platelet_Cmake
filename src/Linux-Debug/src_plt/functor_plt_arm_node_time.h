@@ -1,16 +1,15 @@
-#ifndef FUNCTOR_PLT_ARM_NODE_H_
-#define FUNCTOR_PLT_ARM_NODE_H_
+#ifndef FUNCTOR_PLT_ARM_NODE_TIME_H_
+#define FUNCTOR_PLT_ARM_NODE_TIME_H_
 
 #include "SystemStructures.h"
 
 #include <curand.h>
 #include <curand_kernel.h>
 
-struct functor_plt_arm_node : public thrust::unary_function< U3CVec7, CVec3>  {
-	bool use_dynamic_plt_force;
-	double contour_length_mult;
-	double max_dynamic_force;
-	bool use_nonlinear_dynamic_force;
+struct functor_plt_arm_node_time : public thrust::unary_function< U3CVec7, CVec3>  {
+	double current_time;
+	double CLM;
+	double wlc_factor; // NKBT/P
 	bool distribute_plt_force;
 
   	unsigned plt_tndrl_intrct;
@@ -55,11 +54,10 @@ struct functor_plt_arm_node : public thrust::unary_function< U3CVec7, CVec3>  {
 
    __host__ __device__
    //
-       functor_plt_arm_node(
-			bool& _use_dynamic_plt_force,
-			double& _contour_length_mult,
-			double& _max_dynamic_force,
-			bool& _use_nonlinear_dynamic_force,
+       functor_plt_arm_node_time(
+			double& _current_time,
+			double& _CLM,
+			double& _wlc_factor,
 			bool& _distribute_plt_force,
 
             unsigned& _plt_tndrl_intrct,
@@ -102,10 +100,9 @@ struct functor_plt_arm_node : public thrust::unary_function< U3CVec7, CVec3>  {
             double* _pltLocYAddr,
             double* _pltLocZAddr) :
 
-	use_dynamic_plt_force(_use_dynamic_plt_force),
-	contour_length_mult(_contour_length_mult),
-	max_dynamic_force(_max_dynamic_force),
-	use_nonlinear_dynamic_force(_use_nonlinear_dynamic_force),
+	current_time(_current_time),
+	CLM(_CLM),
+	wlc_factor(_wlc_factor),
 	distribute_plt_force(_distribute_plt_force),
 
     plt_tndrl_intrct(_plt_tndrl_intrct),
@@ -171,9 +168,6 @@ struct functor_plt_arm_node : public thrust::unary_function< U3CVec7, CVec3>  {
         double sumPltForceX = pltCurrentForceX;
         double sumPltForceY = pltCurrentForceY;
         double sumPltForceZ = pltCurrentForceZ;
-
-		// non linear switch values
-		double mag_mult=3;
 
 		//set random generator
 
@@ -384,90 +378,80 @@ struct functor_plt_arm_node : public thrust::unary_function< U3CVec7, CVec3>  {
         	       (vecN_PX) * (vecN_PX) +
         	       (vecN_PY) * (vecN_PY) +
         	       (vecN_PZ) * (vecN_PZ));
-				if ((dist < pltRForce) && (dist > (pltR + fiberDiameter / 2.0))){
-					double forceNodeX;
-					double forceNodeY;
-					double forceNodeZ;
-					double mag_force;
+				    
+                    if ((dist < pltRForce) && (dist > (pltR + fiberDiameter / 2.0))){
+                        double forceNodeX;
+                        double forceNodeY;
+                        double forceNodeZ;
+                        double mag_force;
 
-					if (use_dynamic_plt_force == true) {
-						double strain_count = 0;
-						double sum_strain=0;
-						//first calculate the strain of neighbors of pullNode_id
-						unsigned begin_index = pullNode_id * maxNeighborCount;
-						unsigned num_original_connections = numOriginalNeighborsNodeVector[pullNode_id];
+                        double strain_count = 0;
+                        double sum_strain=0;
+                        //first calculate the strain of neighbors of pullNode_id
+                        unsigned begin_index = pullNode_id * maxNeighborCount;
+                        unsigned num_original_connections = numOriginalNeighborsNodeVector[pullNode_id];
 
-						//can change added value to maxNeighborCount
-						unsigned end_index = begin_index + num_original_connections;
-						for (unsigned pt_index = begin_index; pt_index < end_index; pt_index++) {
-							unsigned pt = glblNghbrsId[pt_index];
-							double dist_0 = lengthZero[pt_index];
-							if ((pt < maxNodeCount) && (pt != pullNode_id)) {
-								//then we have a neighbor and we can calculate the strain
+                        //can change added value to maxNeighborCount
+                        unsigned end_index = begin_index + num_original_connections;
+                        for (unsigned pt_index = begin_index; pt_index < end_index; pt_index++) {
+                            unsigned pt = glblNghbrsId[pt_index];
+                            double dist_0 = lengthZero[pt_index];
+                            if ((pt < maxNodeCount) && (pt != pullNode_id)) {
+                                //then we have a neighbor and we can calculate the strain
+                                double vecN_PX = nodeLocXAddr[pullNode_id] - nodeLocXAddr[pt];
+                                double vecN_PY = nodeLocYAddr[pullNode_id] - nodeLocYAddr[pt];
+                                double vecN_PZ = nodeLocZAddr[pullNode_id] - nodeLocZAddr[pt];
+                                //Calculate distance from plt to node.
+                                double dist = sqrt(
+                                    (vecN_PX) * (vecN_PX)+
+                                    (vecN_PY) * (vecN_PY)+
+                                    (vecN_PZ) * (vecN_PZ));
+                                sum_strain += fabsf((dist - dist_0) / dist_0);
+                                strain_count+=1.0;
+                            }
+                        }
+                        double ave_strain=0;
+                        if (strain_count > 0) {
+                            ave_strain = sum_strain / (strain_count);
+                        }
+                        double term1 = 1.0 / CLM;
+                        double term2 = CLM*CLM / (2.0*(CLM - ave_strain));
+                        double stiffness = wlc_factor * (term1  + term2);
 
-								double vecN_PX = nodeLocXAddr[pullNode_id] - nodeLocXAddr[pt];
-								double vecN_PY = nodeLocYAddr[pullNode_id] - nodeLocYAddr[pt];
-								double vecN_PZ = nodeLocZAddr[pullNode_id] - nodeLocZAddr[pt];
-								//Calculate distance from plt to node.
-								double dist = sqrt(
-									(vecN_PX) * (vecN_PX)+
-									(vecN_PY) * (vecN_PY)+
-									(vecN_PZ) * (vecN_PZ));
-								sum_strain += fabsf((dist - dist_0) / dist_0);
-								strain_count+=1.0;
+                        double tau = 636.6;
+                        double a = 61.0;
+                        double b = 3.582;
+                        double c = 131.8;
+                        double d = 1.417;
+                        double f_0 = 2.233;//
+                        double fitting_factor = (a * stiffness) / (b * stiffness + c);
+                        mag_force = f_0 + (1.0 - d*exp(-(current_time / tau))) * fitting_factor;
 
-							}
-						}
-						double ave_strain=0;
-						if (strain_count > 0) {
-							ave_strain = sum_strain / (strain_count);
-						}
-						else {
-							ave_strain = 0.0;
-						}
+                        //at high strain for certain fitting parameters. 
+                        if (mag_force < 0.0){
+                            mag_force=0.0;
+                        }
+					
+                        //Determine direction of force based on positions and multiply magnitude force
+                        forceNodeX = (vecN_PX / dist) * (mag_force);
+                        forceNodeY = (vecN_PY / dist) * (mag_force);
+                        forceNodeZ = (vecN_PZ / dist) * (mag_force);
 
-						if (use_nonlinear_dynamic_force == false){
-							//when false, use linear response
-							mag_force = pltForce + (max_dynamic_force-pltForce) * (ave_strain / contour_length_mult);
-						}
-						else {
-							//when true use default until strain increases (below)
-							mag_force = pltForce;
-						}
-						
-						//alternate version
-						//this alpha scales the the strain in the negative strain
-						//alpha is back calculated by imposing fmax at C/2
-						if ((use_nonlinear_dynamic_force == true) && (ave_strain>strain_switch)) {
+                        //count force for self plt.
+                        sumPltForceX += (-1.0) * forceNodeX;
+                        sumPltForceY += (-1.0) * forceNodeY;
+                        sumPltForceZ += (-1.0) * forceNodeZ;
 
-							mag_force=mag_mult*pltForce;
-						}
+                        //store force in temporary vector if a node is pulled. Call reduction later.
+                        //Note: this is the only force storage, we need a different increment (final_interaction_count)
+                        //so that we can rescale only those forces stored. Interaction counter might not apply force, so it could be different.
+                        nodeUForceXAddr[storageLocation + final_interaction_count] = forceNodeX;
+                        nodeUForceYAddr[storageLocation + final_interaction_count] = forceNodeY;
+                        nodeUForceZAddr[storageLocation + final_interaction_count] = forceNodeZ;
+                        nodeUId[storageLocation + final_interaction_count] = pullNode_id;
+                        pltUId[storageLocation + final_interaction_count] = pltId;
 
-					}
-					else {
-						//when not using use_dynamic_plt_force, use default force
-						mag_force = pltForce;
-					}
-					//Determine direction of force based on positions and multiply magnitude force
-					forceNodeX = (vecN_PX / dist) * (mag_force);
-					forceNodeY = (vecN_PY / dist) * (mag_force);
-					forceNodeZ = (vecN_PZ / dist) * (mag_force);
-
-					//count force for self plt.
-					sumPltForceX += (-1.0) * forceNodeX;
-					sumPltForceY += (-1.0) * forceNodeY;
-					sumPltForceZ += (-1.0) * forceNodeZ;
-
-					//store force in temporary vector if a node is pulled. Call reduction later.
-					//Note: this is the only force storage, we need a different increment (final_interaction_count)
-					//so that we can rescale only those forces stored. Interaction counter might not apply force, so it could be different.
-					nodeUForceXAddr[storageLocation + final_interaction_count] = forceNodeX;
-					nodeUForceYAddr[storageLocation + final_interaction_count] = forceNodeY;
-					nodeUForceZAddr[storageLocation + final_interaction_count] = forceNodeZ;
-					nodeUId[storageLocation + final_interaction_count] = pullNode_id;
-					pltUId[storageLocation + final_interaction_count] = pltId;
-
-					final_interaction_count += 1;
+                        final_interaction_count += 1;
 
 				}
 
